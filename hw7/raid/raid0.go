@@ -16,11 +16,16 @@ func NewRAID0(numDisks int) *RAID0 {
 
 func (r *RAID0) Write(blockNum int, data []byte) error {
 	diskNum := blockNum % r.numDisks
-	fmt.Printf("RAID0 writing to disk %d: %s\n", diskNum, data)
-	return disk.WriteBlock(diskNum, blockNum/r.numDisks, data)
+	offset := blockNum / r.numDisks
+	fmt.Printf("RAID0 writing block %d to disk %d\n", blockNum, diskNum)
+
+	padded := make([]byte, disk.BlockSize)
+	copy(padded, data)
+	return disk.WriteBlock(diskNum, offset, padded)
 }
 
 func (r *RAID0) Read(blockNum int) ([]byte, error) {
 	diskNum := blockNum % r.numDisks
-	return disk.ReadBlock(diskNum, blockNum/r.numDisks)
+	offset := blockNum / r.numDisks
+	return disk.ReadBlock(diskNum, offset)
 }
