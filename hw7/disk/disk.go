@@ -1,3 +1,4 @@
+// disk/disk.go
 package disk
 
 import (
@@ -6,7 +7,10 @@ import (
 	"path/filepath"
 )
 
-const blockSize = 512
+const blockSize = 4096
+const BlockSize = 4096 //fpr RAID0
+
+//const 	blockSize = 512 // Block size is 512 bytes
 
 // WriteBlock writes a block to diskN.dat at the given index.
 func WriteBlock(diskID int, blockIndex int, data []byte) error {
@@ -30,7 +34,11 @@ func WriteBlock(diskID int, blockIndex int, data []byte) error {
 	padded := make([]byte, blockSize)
 	copy(padded, data)
 	_, err = f.Write(padded)
-	return err
+	if err != nil {
+		return err
+	}
+
+	return f.Sync() // ✅ Flushes the write to disk
 }
 
 // ReadBlock reads a block from diskN.dat at the given index.
