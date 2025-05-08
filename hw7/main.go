@@ -6,21 +6,35 @@ import (
 	"fmt"
 	"hw7_raid_sim/raid"
 	"hw7_raid_sim/utils"
+	"math/rand"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
-func main() {
-	fmt.Println("RAID Benchmarking Simulator")
+func CleanupDiskFiles() {
+	files, err := os.ReadDir("data")
+	if err != nil {
+		return // silently ignore if directory doesn't exist
+	}
+	for _, f := range files {
+		if strings.HasSuffix(f.Name(), ".dat") {
+			os.Remove(filepath.Join("data", f.Name()))
+		}
+	}
+}
 
-	raidLevel := flag.String("level", "raid0", "RAID level to use: raid0, raid1, raid4, raid5")
+func main() {
+	CleanupDiskFiles()
+
+	level := flag.String("level", "raid0", "RAID level: raid0, raid1, raid4, raid5")
 	disks := flag.Int("disks", 4, "Number of disks")
-	block := flag.String("block", "example block data", "Data to write")
-	index := flag.Int("index", 0, "Block number")
+	sizeMB := flag.Int("size", 100, "Benchmark size in MB")
 	flag.Parse()
 
 	var r raid.RAID
-	switch *raidLevel {
+	switch *level {
 	case "raid0":
 		r = raid.NewRAID0(*disks)
 	case "raid1":
@@ -30,23 +44,37 @@ func main() {
 	case "raid5":
 		r = raid.NewRAID5(*disks)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown RAID level: %s\n", *raidLevel)
-		os.Exit(1)
+		panic("Unsupported RAID level")
 	}
 
+	//blockSize := 512
+	blockSize := 4096
+	numBlocks := (*sizeMB * 1024 * 1024) / blockSize
+
+	// Generate data
+	data := make([][]byte, numBlocks)
+	for i := range data {
+		b := make([]byte, blockSize)
+		rand.Read(b)
+		data[i] = b
+	}
+
+	// Write benchmark
 	start := time.Now()
-	r.Write(*index, []byte(*block))
-	writeDuration := time.Since(start)
-
-	start = time.Now()
-	data, err := r.Read(*index)
-	readDuration := time.Since(start)
-
-	if err != nil {
-		fmt.Println("Read error:", err)
-	} else {
-		fmt.Println("Read data:", string(data))
+	for i := 0; i < numBlocks; i++ {
+		r.Write(i, data[i])
 	}
+	writeTime := time.Since(start)
 
-	fmt.Printf("Write Time: %s | Read Time: %s\n", utils.FormatDuration(writeDuration), utils.FormatDuration(readDuration))
+	// Read benchmark
+	start = time.Now()
+	for i := 0; i < numBlocks; i++ {
+		r.Read(i)
+	}
+	readTime := time.Since(start)
+
+	fmt.Printf("RAID Level: %s\n", *level)
+	fmt.Printf("Disks: %d | Size: %d MB | Blocks: %d\n", *disks, *sizeMB, numBlocks)
+	fmt.Printf("Total Write Time: %s\n", utils.FormatDuration(writeTime))
+	fmt.Printf("Total Read Time:  %s\n", utils.FormatDuration(readTime))
 }
